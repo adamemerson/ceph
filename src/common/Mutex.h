@@ -22,8 +22,6 @@
 #include <pthread.h>
 #include <mutex>
 
-using namespace ceph;
-
 class Mutex {
 private:
   std::string name;

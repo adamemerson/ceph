@@ -74,9 +74,6 @@ extern void __ceph_assert_warn(const char *assertion, const char *file, int line
 
 }
 
-using namespace ceph;
-
-
 /*
  * ceph_abort aborts the program with a nice backtrace.
  *

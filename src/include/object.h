@@ -29,8 +29,6 @@
 #include "ceph_hash.h"
 #include "cmp.h"
 
-using namespace std;
-
 struct object_t {
   string name;
 

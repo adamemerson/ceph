@@ -27,7 +27,6 @@
 #include <boost/spirit/include/classic_ast.hpp>
 #include <boost/spirit/include/classic_tree_to_xml.hpp>
 #endif
-using namespace boost::spirit;
 
 struct crush_grammar : public grammar<crush_grammar>
 {

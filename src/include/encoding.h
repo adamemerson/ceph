@@ -41,8 +41,6 @@
 
 #include "assert.h"
 
-using namespace ceph;
-
 namespace ceph {
 
 /*

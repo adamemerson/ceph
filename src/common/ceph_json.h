@@ -17,9 +17,6 @@
 
 #include "Formatter.h"
 
-using namespace json_spirit;
-
-
 class JSONObj;
 
 class JSONObjIter {

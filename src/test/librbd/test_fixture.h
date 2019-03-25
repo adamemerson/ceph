@@ -8,8 +8,6 @@
 #include <set>
 #include <string>
 
-using namespace ceph;
-
 class TestFixture : public ::testing::Test {
 public:
 

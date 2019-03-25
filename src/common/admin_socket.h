@@ -27,9 +27,7 @@
 class AdminSocket;
 class CephContext;
 
-using namespace std::literals;
-
-inline constexpr auto CEPH_ADMIN_SOCK_VERSION = "2"sv;
+inline constexpr auto CEPH_ADMIN_SOCK_VERSION = std::string_view("2");
 
 class AdminSocketHook {
 public:

@@ -26,9 +26,6 @@
 #include <cfloat>
 #include <iostream>
 
-using namespace std;
-using ceph::bufferlist;
-
 /**
  * stores pairings from op type to time taken for that op (for latency), and to
  * time that op completed to the nearest second (for throughput).

@@ -15,8 +15,8 @@
  * 
  */
 
-#include <errno.h>
 #include <algorithm>
+#include <cerrno>
 
 #include "ErasureCode.h"
 

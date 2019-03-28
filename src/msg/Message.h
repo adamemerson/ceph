@@ -14,7 +14,7 @@
 
 #ifndef CEPH_MESSAGE_H
 #define CEPH_MESSAGE_H
- 
+
 #include <cstdlib>
 #include <ostream>
 #include <string_view>

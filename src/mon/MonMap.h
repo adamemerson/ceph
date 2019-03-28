@@ -317,7 +317,7 @@ public:
   std::string get_name(const entity_addr_t& a) const {
     std::map<entity_addr_t, std::string>::const_iterator p = addr_mons.find(a);
     if (p == addr_mons.end())
-      return string();
+      return std::string();
     else
       return p->second;
   }
@@ -327,7 +327,7 @@ public:
       if (p != addr_mons.end())
 	return p->second;
     }
-    return string();
+    return std::string();
   }
 
   int get_rank(const std::string& n) const {

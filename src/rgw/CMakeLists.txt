@@ -411,7 +411,7 @@ set(radosgw_admin_srcs
 add_executable(radosgw-admin ${radosgw_admin_srcs})
 target_link_libraries(radosgw-admin ${rgw_libs} librados
   cls_rgw_client cls_otp_client cls_lock_client cls_refcount_client
-  cls_log_client cls_timeindex_client neorados_cls_fifo
+  cls_log_client cls_timeindex_client
   cls_version_client cls_user_client
   global ${LIB_RESOLV}
   OATH::OATH
@@ -423,7 +423,7 @@ set(radosgw_es_srcs
 add_executable(radosgw-es ${radosgw_es_srcs})
 target_link_libraries(radosgw-es ${rgw_libs} librados
   cls_rgw_client cls_otp_client cls_lock_client cls_refcount_client
-  cls_log_client cls_timeindex_client neorados_cls_fifo
+  cls_log_client cls_timeindex_client
   cls_version_client cls_user_client
   global ${LIB_RESOLV}
   ${CURL_LIBRARIES} ${EXPAT_LIBRARIES} ${BLKID_LIBRARIES})
@@ -441,7 +441,7 @@ set(radosgw_object_expirer_srcs
 add_executable(radosgw-object-expirer ${radosgw_object_expirer_srcs})
 target_link_libraries(radosgw-object-expirer ${rgw_libs} librados
   cls_rgw_client cls_otp_client cls_lock_client cls_refcount_client
-  cls_log_client cls_timeindex_client neorados_cls_fifo
+  cls_log_client cls_timeindex_client
   cls_version_client cls_user_client
   global ${LIB_RESOLV}
   ${CURL_LIBRARIES} ${EXPAT_LIBRARIES})
@@ -472,7 +472,6 @@ target_link_libraries(rgw
   cls_refcount_client
   cls_log_client
   cls_timeindex_client
-  neorados_cls_fifo
   cls_version_client
   cls_user_client
   ${LIB_RESOLV}

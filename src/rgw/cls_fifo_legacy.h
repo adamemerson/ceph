@@ -275,6 +275,11 @@ public:
 		       void(int r, fifo::part_header&&)>,
 		     lr::AioCompletion* c //< AIO Completion
     );
+
+  auto get_info_version() {
+    std::unique_lock l(m);
+    return info.version;
+  }
 };
 
 template<typename T>

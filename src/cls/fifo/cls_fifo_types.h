@@ -399,21 +399,20 @@ struct info {
         }
       }
 
-      if (entry.op == set_head &&
-	  std::ranges::count_if(journal,
-				[](const auto& e) {
-				  return e.second.op == set_head; })) {
-	if (errmsg) {
-	  *errmsg =
-	    "multiple set_head operations are not allowed in the journal";
-	}
-	return -ECANCELED;
-      }
-
-
-
-      if (entry.op == create) {
-	tags[entry.part_num] = entry.part_tag;
+      switch (entry.op)
+      {
+        case create:
+          tags[entry.part_num] = entry.part_tag;
+        case set_head:
+          // remove stale set_head and create ops
+          std::erase_if(journal, [&entry](const auto& item) {
+            auto const& [part_num, jentry] = item;
+            return entry.op == jentry.op &&
+                   entry.part_num > jentry.part_num;
+          });
+          break;
+        default:
+          break;
       }
 
       journal.emplace(entry.part_num, entry);

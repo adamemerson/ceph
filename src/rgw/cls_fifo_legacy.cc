@@ -441,12 +441,7 @@ int FIFO::apply_update(const DoutPrefixProvider *dpp,
 		 << " entering: tid=" << tid << dendl;
   std::unique_lock l(m);
 
-  if (objv < info->version) {
-    ldpp_dout(dpp, 0) << __PRETTY_FUNCTION__ << ":" << __LINE__
-		      << " a newer version is available. use the newer version. tid="
-		      << tid << dendl;
-    return 0;
-  } else if (objv != info->version) {
+  if (objv != info->version) {
     ldpp_dout(dpp, -1) << __PRETTY_FUNCTION__ << ":" << __LINE__
 		       << " version mismatch, canceling: tid=" << tid << dendl;
     return -ECANCELED;
@@ -792,12 +787,6 @@ int FIFO::_prepare_new_part(const DoutPrefixProvider *dpp,
     if (r >= 0 && canceled) {
       std::unique_lock l(m);
       version = info.version;
-      if (new_part_num <= info.max_push_part_num) {
-	ldpp_dout(dpp, 0) << __PRETTY_FUNCTION__ << ":" << __LINE__
-		       << " raced, but processed: i=" << i
-		       << " tid=" << tid << dendl;
-	return 0;
-      }
       auto found = (info.journal.find(new_part_num) != info.journal.end());
       if ((info.max_push_part_num >= new_part_num &&
 	   info.head_part_num >= new_part_num)) {
@@ -885,12 +874,6 @@ int FIFO::_prepare_new_head(const DoutPrefixProvider *dpp,
       std::unique_lock l(m);
       auto iter = info.journal.find(new_head_part_num);
       version = info.version;
-      if (!info.need_new_head()) {
-	ldpp_dout(dpp, 0) << __PRETTY_FUNCTION__ << ":" << __LINE__
-		       << " raced, but processed: i=" << i
-		       << " tid=" << tid << dendl;
-	return 0;
-      }
       bool found = iter != info.journal.cend() && iter->second.op == set_head;
       if ((info.head_part_num >= new_head_part_num)) {
 	ldpp_dout(dpp, 20) << __PRETTY_FUNCTION__ << ":" << __LINE__

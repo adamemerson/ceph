@@ -384,16 +384,19 @@ struct info {
 
     for (const auto& entry : update.journal_entries_add()) {
       using enum journal_entry::Op;
-      auto iter = journal.find(entry.part_num);
-      if (iter != journal.end() &&
-	  iter->second.op == entry.op) {
-	/* don't allow multiple identical operations on the same part,
-	   racing clients should use objv to avoid races anyway */
-	if (errmsg) {
-	  *errmsg = fmt::format("multiple identical operations on same part "
-				"are not allowed, part num={}", entry.part_num);
-	}
-	return -ECANCELED;
+      auto start_it = journal.lower_bound(entry.part_num);
+      auto end_it = journal.upper_bound(entry.part_num);
+      for ( ;start_it != end_it; ++start_it)
+      {
+        if (start_it->second.op == entry.op) {
+          /* don't allow multiple identical operations on the same part,
+             racing clients should use objv to avoid races anyway */
+          if (errmsg) {
+            *errmsg = fmt::format("multiple identical operations on same part "
+                                  "are not allowed, part num={}", entry.part_num);
+          }
+          return -ECANCELED;
+        }
       }
 
       if (entry.op == set_head &&

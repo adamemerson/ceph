@@ -440,7 +440,13 @@ int FIFO::apply_update(const DoutPrefixProvider *dpp,
   ldpp_dout(dpp, 20) << __PRETTY_FUNCTION__ << ":" << __LINE__
 		 << " entering: tid=" << tid << dendl;
   std::unique_lock l(m);
-  if (objv != info->version) {
+
+  if (objv < info->version) {
+    ldpp_dout(dpp, 0) << __PRETTY_FUNCTION__ << ":" << __LINE__
+		      << " a newer version is available. use the newer version. tid="
+		      << tid << dendl;
+    return 0;
+  } else if (objv != info->version) {
     ldpp_dout(dpp, -1) << __PRETTY_FUNCTION__ << ":" << __LINE__
 		       << " version mismatch, canceling: tid=" << tid << dendl;
     return -ECANCELED;
@@ -688,13 +694,14 @@ int FIFO::process_journal(const DoutPrefixProvider *dpp, std::uint64_t tid, opti
 
     std::unique_lock l(m);
     auto objv = info.version;
-    if (new_tail > tail_part_num) tail_part_num = new_tail;
+    if (new_tail > info.tail_part_num) tail_part_num = new_tail;
     if (new_head > info.head_part_num) head_part_num = new_head;
     if (new_max > info.max_push_part_num) max_part_num = new_max;
     l.unlock();
 
     if (processed.empty() &&
 	!tail_part_num &&
+	!head_part_num &&
 	!max_part_num) {
       ldpp_dout(dpp, 20) << __PRETTY_FUNCTION__ << ":" << __LINE__
 		     << " nothing to update any more: i=" << i << " tid="
@@ -785,6 +792,12 @@ int FIFO::_prepare_new_part(const DoutPrefixProvider *dpp,
     if (r >= 0 && canceled) {
       std::unique_lock l(m);
       version = info.version;
+      if (new_part_num <= info.max_push_part_num) {
+	ldpp_dout(dpp, 0) << __PRETTY_FUNCTION__ << ":" << __LINE__
+		       << " raced, but processed: i=" << i
+		       << " tid=" << tid << dendl;
+	return 0;
+      }
       auto found = (info.journal.find(new_part_num) != info.journal.end());
       if ((info.max_push_part_num >= new_part_num &&
 	   info.head_part_num >= new_part_num)) {
@@ -854,6 +867,7 @@ int FIFO::_prepare_new_head(const DoutPrefixProvider *dpp,
     return 0;
   }
 
+  // ??? Is this really necessary, since Op::create and Op:set_head always come in pair?
   using enum fifo::journal_entry::Op;
   fifo::journal_entry jentry;
   jentry.op = set_head;
@@ -871,6 +885,12 @@ int FIFO::_prepare_new_head(const DoutPrefixProvider *dpp,
       std::unique_lock l(m);
       auto iter = info.journal.find(new_head_part_num);
       version = info.version;
+      if (!info.need_new_head()) {
+	ldpp_dout(dpp, 0) << __PRETTY_FUNCTION__ << ":" << __LINE__
+		       << " raced, but processed: i=" << i
+		       << " tid=" << tid << dendl;
+	return 0;
+      }
       bool found = iter != info.journal.cend() && iter->second.op == set_head;
       if ((info.head_part_num >= new_head_part_num)) {
 	ldpp_dout(dpp, 20) << __PRETTY_FUNCTION__ << ":" << __LINE__

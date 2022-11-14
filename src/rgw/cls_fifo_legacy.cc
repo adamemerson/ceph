@@ -669,7 +669,7 @@ int FIFO::process_journal(const DoutPrefixProvider *dpp, std::uint64_t tid, opti
       ldpp_dout(dpp, -1) << __PRETTY_FUNCTION__ << ":" << __LINE__
 		 << " processing entry failed: entry=" << entry
 		 << " r=" << r << " tid=" << tid << dendl;
-      return -r;
+      return r;
     }
 
     processed.push_back(std::move(entry));

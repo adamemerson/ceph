@@ -586,8 +586,7 @@ int FIFO::create_part(const DoutPrefixProvider *dpp, int64_t part_num, std::stri
   ldpp_dout(dpp, 20) << __PRETTY_FUNCTION__ << ":" << __LINE__
 		 << " entering: tid=" << tid << dendl;
   lr::ObjectWriteOperation op;
-  op.create(false); /* We don't need exclusivity, part_init ensures
-		       we're creating from the same journal entry. */
+  op.create(true); /* We need exclusivity in case another thread wants to create the same part again */
   std::unique_lock l(m);
   part_init(&op, tag, info.params);
   auto oid = info.part_oid(part_num);
@@ -840,6 +839,13 @@ int FIFO::_prepare_new_head(const DoutPrefixProvider *dpp,
       ldpp_dout(dpp, -1) << __PRETTY_FUNCTION__ << ":" << __LINE__
 		 << " _prepare_new_part failed: r=" << r
 		 << " tid=" << tid << dendl;
+      if (r == -EEXIST)
+      {
+        ldpp_dout(dpp, -1) << __PRETTY_FUNCTION__ << ":" << __LINE__
+          << " blp _prepare_new_head part already exists ignore the failure and re-read meta"
+          << " tid=" << tid << dendl;
+        r = read_meta(dpp, tid, y);
+      }
       return r;
     }
     std::unique_lock l(m);
@@ -2117,8 +2123,7 @@ private:
 			 << " entering: tid=" << tid << dendl;
     state = entry_callback;
     lr::ObjectWriteOperation op;
-    op.create(false); /* We don't need exclusivity, part_init ensures
-			 we're creating from the  same journal entry. */
+    op.create(true); /* We need exclusivity in case another thread wants to create the same part again */
     std::unique_lock l(fifo->m);
     part_init(&op, tag, fifo->info.params);
     auto oid = fifo->info.part_oid(part_num);

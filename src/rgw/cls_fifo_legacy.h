@@ -135,10 +135,10 @@ class FIFO {
 		   const fifo::update& update,
 		   std::uint64_t tid);
   int _update_meta(const DoutPrefixProvider *dpp, const fifo::update& update,
-		   fifo::objv version, bool* pcanceled,
+		   bool* pcanceled,
 		   std::uint64_t tid, optional_yield y);
   void _update_meta(const DoutPrefixProvider *dpp, const fifo::update& update,
-		    fifo::objv version, bool* pcanceled,
+		    bool* pcanceled,
 		    std::uint64_t tid, lr::AioCompletion* c);
   int create_part(const DoutPrefixProvider *dpp, int64_t part_num, std::string_view tag, std::uint64_t tid,
 		  optional_yield y);

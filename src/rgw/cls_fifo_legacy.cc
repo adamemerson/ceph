@@ -105,12 +105,13 @@ int get_meta(const DoutPrefixProvider *dpp, lr::IoCtx& ioctx, const std::string&
 };
 
 namespace {
-void update_meta(lr::ObjectWriteOperation* op, const fifo::objv& objv,
-		 const fifo::update& update)
+auto update_meta(lr::ObjectWriteOperation* op, FIFO* f, const fifo::update& update)
 {
   fifo::op::update_meta um;
 
-  um.version = objv;
+  auto version = f->get_info_version();
+
+  um.version = version;
   um.tail_part_num = update.tail_part_num();
   um.head_part_num = update.head_part_num();
   um.min_push_part_num = update.min_push_part_num();
@@ -121,6 +122,8 @@ void update_meta(lr::ObjectWriteOperation* op, const fifo::objv& objv,
   cb::list in;
   encode(um, in);
   op->exec(fifo::op::CLASS, fifo::op::UPDATE_META, in);
+
+  return version;
 }
 
 void part_init(lr::ObjectWriteOperation* op, std::string_view tag,
@@ -459,14 +462,14 @@ int FIFO::apply_update(const DoutPrefixProvider *dpp,
 }
 
 int FIFO::_update_meta(const DoutPrefixProvider *dpp, const fifo::update& update,
-		       fifo::objv version, bool* pcanceled,
+		       bool* pcanceled,
 		       std::uint64_t tid, optional_yield y)
 {
   ldpp_dout(dpp, 20) << __PRETTY_FUNCTION__ << ":" << __LINE__
 		 << " entering: tid=" << tid << dendl;
   lr::ObjectWriteOperation op;
   bool canceled = false;
-  update_meta(&op, info.version, update);
+  auto version = update_meta(&op, this, update);
   auto r = rgw_rados_operate(dpp, ioctx, oid, &op, y);
   if (r >= 0 || r == -ECANCELED) {
     canceled = (r == -ECANCELED);
@@ -567,13 +570,13 @@ struct Updater : public Completion<Updater> {
 };
 
 void FIFO::_update_meta(const DoutPrefixProvider *dpp, const fifo::update& update,
-			fifo::objv version, bool* pcanceled,
+			bool* pcanceled,
 			std::uint64_t tid, lr::AioCompletion* c)
 {
   ldpp_dout(dpp, 20) << __PRETTY_FUNCTION__ << ":" << __LINE__
 		 << " entering: tid=" << tid << dendl;
   lr::ObjectWriteOperation op;
-  update_meta(&op, info.version, update);
+  auto version = update_meta(&op, this, update);
   auto updater = std::make_unique<Updater>(dpp, this, c, update, version, pcanceled,
 					   tid);
   auto r = ioctx.aio_operate(oid, Updater::call(std::move(updater)), &op);
@@ -686,7 +689,6 @@ int FIFO::process_journal(const DoutPrefixProvider *dpp, std::uint64_t tid, opti
     std::optional<int64_t> max_part_num;
 
     std::unique_lock l(m);
-    auto objv = info.version;
     if (new_tail > tail_part_num) tail_part_num = new_tail;
     if (new_head > info.head_part_num) head_part_num = new_head;
     if (new_max > info.max_push_part_num) max_part_num = new_max;
@@ -704,7 +706,7 @@ int FIFO::process_journal(const DoutPrefixProvider *dpp, std::uint64_t tid, opti
     auto u = fifo::update().tail_part_num(tail_part_num)
       .head_part_num(head_part_num).max_push_part_num(max_part_num)
       .journal_entries_rm(processed);
-    r = _update_meta(dpp, u, objv, &canceled, tid, y);
+    r = _update_meta(dpp, u, &canceled, tid, y);
     if (r < 0) {
       ldpp_dout(dpp, -1) << __PRETTY_FUNCTION__ << ":" << __LINE__
 		 << " _update_meta failed: update=" << u
@@ -762,7 +764,6 @@ int FIFO::_prepare_new_part(const DoutPrefixProvider *dpp,
     }
     return r;
   }
-  auto version = info.version;
 
   if (is_head) {
     ldpp_dout(dpp, 20) << __PRETTY_FUNCTION__ << ":" << __LINE__
@@ -780,7 +781,7 @@ int FIFO::_prepare_new_part(const DoutPrefixProvider *dpp,
     ldpp_dout(dpp, 20) << __PRETTY_FUNCTION__ << ":" << __LINE__
 		   << " updating metadata: i=" << i << " tid=" << tid << dendl;
     auto u = fifo::update{}.journal_entries_add(jentries);
-    r = _update_meta(dpp, u, version, &canceled, tid, y);
+    r = _update_meta(dpp, u, &canceled, tid, y);
     if (r >= 0 && canceled) {
       std::unique_lock l(m);
       auto found = (info.journal.find(new_part_num) != info.journal.end());
@@ -827,7 +828,6 @@ int FIFO::_prepare_new_head(const DoutPrefixProvider *dpp,
 		     << " entering: tid=" << tid << dendl;
   std::unique_lock l(m);
   auto max_push_part_num = info.max_push_part_num;
-  auto version = info.version;
   l.unlock();
 
   int r = 0;
@@ -871,7 +871,7 @@ int FIFO::_prepare_new_head(const DoutPrefixProvider *dpp,
     ldpp_dout(dpp, 20) << __PRETTY_FUNCTION__ << ":" << __LINE__
 		   << " updating metadata: i=" << i << " tid=" << tid << dendl;
     auto u = fifo::update{}.journal_entries_add({{ jentry }});
-    r = _update_meta(dpp, u, version, &canceled, tid, y);
+    r = _update_meta(dpp, u, &canceled, tid, y);
     if (r >= 0 && canceled) {
       std::unique_lock l(m);
       auto iter = info.journal.find(new_head_part_num);
@@ -941,7 +941,6 @@ struct NewPartPreparer : public Completion<NewPartPreparer> {
       auto iter = f->info.journal.find(new_part_num);
       auto max_push_part_num = f->info.max_push_part_num;
       auto head_part_num = f->info.head_part_num;
-      auto version = f->info.version;
       auto found = (iter != f->info.journal.end());
       l.unlock();
       if ((max_push_part_num >= new_part_num &&
@@ -960,7 +959,7 @@ struct NewPartPreparer : public Completion<NewPartPreparer> {
 	++i;
 	f->_update_meta(dpp, fifo::update{}
 			.journal_entries_add(jentries),
-                        version, &canceled, tid, call(std::move(p)));
+                        &canceled, tid, call(std::move(p)));
 	return;
       } else {
 	ldpp_dout(dpp, 20) << __PRETTY_FUNCTION__ << ":" << __LINE__
@@ -988,7 +987,6 @@ void FIFO::_prepare_new_part(const DoutPrefixProvider *dpp, std::int64_t new_par
     process_journal(dpp, tid, c);
     return;
   }
-  auto version = info.version;
 
   if (is_head) {
     auto new_head_jentry = jentries.front();
@@ -1000,7 +998,7 @@ void FIFO::_prepare_new_part(const DoutPrefixProvider *dpp, std::int64_t new_par
   auto n = std::make_unique<NewPartPreparer>(dpp, this, c, jentries,
 					     new_part_num, tid);
   auto np = n.get();
-  _update_meta(dpp, fifo::update{}.journal_entries_add(jentries), version,
+  _update_meta(dpp, fifo::update{}.journal_entries_add(jentries),
 	       &np->canceled, tid, NewPartPreparer::call(std::move(n)));
 }
 
@@ -1062,7 +1060,6 @@ struct NewHeadPreparer : public Completion<NewHeadPreparer> {
       std::unique_lock l(f->m);
       auto iter = f->info.journal.find(new_head_part_num);
       auto head_part_num = f->info.head_part_num;
-      auto version = f->info.version;
       auto found = iter != f->info.journal.cend() && iter->second.op == set_head;
 
       l.unlock();
@@ -1084,7 +1081,7 @@ struct NewHeadPreparer : public Completion<NewHeadPreparer> {
 	jentry.part_num = new_head_part_num;
 	f->_update_meta(dpp, fifo::update{}
 			.journal_entries_add({{jentry}}),
-                        version, &canceled, tid, call(std::move(p)));
+                        &canceled, tid, call(std::move(p)));
 	return;
       } else {
 	ldpp_dout(dpp, 20) << __PRETTY_FUNCTION__ << ":" << __LINE__
@@ -1106,7 +1103,6 @@ void FIFO::_prepare_new_head(const DoutPrefixProvider *dpp, std::int64_t new_hea
 		 << " entering: tid=" << tid << dendl;
   std::unique_lock l(m);
   auto max_push_part_num = info.max_push_part_num;
-  auto version = info.version;
   l.unlock();
 
   if (max_push_part_num < new_head_part_num) {
@@ -1126,7 +1122,7 @@ void FIFO::_prepare_new_head(const DoutPrefixProvider *dpp, std::int64_t new_hea
     fifo::journal_entry jentry;
     jentry.op = set_head;
     jentry.part_num = new_head_part_num;
-    _update_meta(dpp, fifo::update{}.journal_entries_add({{jentry}}), version,
+    _update_meta(dpp, fifo::update{}.journal_entries_add({{jentry}}),
 		 &np->canceled, tid, NewHeadPreparer::call(std::move(n)));
   }
 }
@@ -1807,14 +1803,13 @@ int FIFO::trim(const DoutPrefixProvider *dpp, std::string_view markstr, bool exc
 
   l.lock();
   auto tail_part_num = info.tail_part_num;
-  auto objv = info.version;
   l.unlock();
   bool canceled = tail_part_num < part_num;
   int retries = 0;
   while ((tail_part_num < part_num) &&
 	 canceled &&
 	 (retries <= MAX_RACE_RETRIES)) {
-    r = _update_meta(dpp, fifo::update{}.tail_part_num(part_num), objv, &canceled,
+    r = _update_meta(dpp, fifo::update{}.tail_part_num(part_num), &canceled,
 		     tid, y);
     if (r < 0) {
       ldpp_dout(dpp, -1) << __PRETTY_FUNCTION__ << ":" << __LINE__
@@ -1828,7 +1823,6 @@ int FIFO::trim(const DoutPrefixProvider *dpp, std::string_view markstr, bool exc
 		     << " tid=" << tid << dendl;
       l.lock();
       tail_part_num = info.tail_part_num;
-      objv = info.version;
       l.unlock();
       ++retries;
     }
@@ -1942,7 +1936,6 @@ struct Trimmer : public Completion<Trimmer> {
 		   << " handling update-needed callback: tid=" << tid << dendl;
     std::unique_lock l(fifo->m);
     auto tail_part_num = fifo->info.tail_part_num;
-    auto objv = fifo->info.version;
     l.unlock();
     if ((tail_part_num < part_num) &&
 	canceled) {
@@ -1954,7 +1947,7 @@ struct Trimmer : public Completion<Trimmer> {
       }
       ++retries;
       fifo->_update_meta(dpp, fifo::update{}
-			 .tail_part_num(part_num), objv, &canceled,
+			 .tail_part_num(part_num), &canceled,
                          tid, call(std::move(p)));
     } else {
       complete(std::move(p), overshoot ? -ENODATA : 0);
@@ -2273,7 +2266,6 @@ public:
     }
 
     std::unique_lock l(fifo->m);
-    auto objv = fifo->info.version;
     if (new_tail > fifo->info.tail_part_num) {
       tail_part_num = new_tail;
     }
@@ -2303,7 +2295,7 @@ public:
 		       .head_part_num(head_part_num)
 		       .max_push_part_num(max_part_num)
 		       .journal_entries_rm(processed),
-                       objv, &this->canceled, tid, call(std::move(p)));
+                       &this->canceled, tid, call(std::move(p)));
     return;
   }
 

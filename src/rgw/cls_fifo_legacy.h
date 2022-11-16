@@ -114,6 +114,7 @@ class FIFO {
   CephContext* cct = static_cast<CephContext*>(ioctx.cct());
   const std::string oid;
   std::mutex m;
+  std::mutex m2;  
   std::uint64_t next_tid = 0;
 
   fifo::info info;

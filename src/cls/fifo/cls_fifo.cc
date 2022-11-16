@@ -75,19 +75,13 @@ std::string new_oid_prefix(std::string id, std::optional<std::string>& val)
   return fmt::format("{}.{}", id, buf);
 }
 
-int write_header(cls_method_context_t hctx,
-		 info& header,
-		 bool inc_ver = true)
-{
+int write_header(cls_method_context_t hctx, info& header) {
   static constexpr auto HEADER_INSTANCE_SIZE = 16;
   if (header.version.instance.empty()) {
     char buf[HEADER_INSTANCE_SIZE + 1];
     buf[HEADER_INSTANCE_SIZE] = 0;
     cls_gen_rand_base64(buf, sizeof(buf) - 1);
     header.version.instance = buf;
-  }
-  if (inc_ver) {
-    ++header.version.ver;
   }
   ceph::buffer::list bl;
   encode(header, bl);
@@ -300,7 +294,7 @@ int create_meta(cls_method_context_t hctx,
   header.params.max_entry_size = op.max_entry_size;
   header.params.full_size_threshold = op.max_part_size - op.max_entry_size - part_entry_overhead;
 
-  r = write_header(hctx, header, false);
+  r = write_header(hctx, header);
   if (r < 0) {
     CLS_ERR("%s: failed to write header: r=%d", __PRETTY_FUNCTION__, r);
     return r;

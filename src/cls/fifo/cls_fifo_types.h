@@ -442,6 +442,7 @@ struct info {
       }
     }
 
+    ++target.version.ver;
     *this = std::move(target);
     return 0;
   }

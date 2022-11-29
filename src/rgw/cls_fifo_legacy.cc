@@ -1443,6 +1443,26 @@ int FIFO::push(const DoutPrefixProvider *dpp, const std::vector<cb::list>& data_
       r = 0;
       continue;
     }
+
+    if (r == -EIO || r == -ECANCELED) {
+      ++retries;
+      ldpp_dout(dpp, 1) << __PRETTY_FUNCTION__ << ":" << __LINE__
+                        << " push_entries failed: r=" << r
+                        << " trying reading metadata"
+                        << " tid = " << tid
+                        << " oid= " << info.part_oid(head_part_num) << dendl;
+      r = read_meta(dpp, tid, y);
+      if (r < 0) {
+        ldpp_dout(dpp, -1) << __PRETTY_FUNCTION__ << ":" << __LINE__
+                           << " read_meta failed: r=" << r
+                           << " oid= " << info.part_oid(head_part_num)
+                           << " tid=" << tid << dendl;
+        return r;
+      }
+      r = 0;
+      continue;
+    }
+
     if (r < 0) {
       ldpp_dout(dpp, -1) << __PRETTY_FUNCTION__ << ":" << __LINE__
 		 << " push_entries failed: r=" << r

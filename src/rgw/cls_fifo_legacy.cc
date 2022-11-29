@@ -1550,7 +1550,6 @@ struct Pusher : public Completion<Pusher> {
   void new_head(const DoutPrefixProvider *dpp, Ptr&& p) {
     new_heading = true;
     f->_prepare_new_head(dpp, head_part_num + 1, tid, call(std::move(p)));
-    l2.unlock();
   }
 
   void handle(const DoutPrefixProvider *dpp, Ptr&& p, int r) {

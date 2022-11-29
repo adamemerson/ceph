@@ -1380,9 +1380,7 @@ int FIFO::push(const DoutPrefixProvider *dpp, const std::vector<cb::list>& data_
   if (need_new_head) {
     ldpp_dout(dpp, 20) << __PRETTY_FUNCTION__ << ":" << __LINE__
 		   << " need new head tid=" << tid << dendl;
-    std::unique_lock l2(m2);
     r = _prepare_new_head(dpp, head_part_num + 1, tid, y);
-    l2.unlock();
     if (r < 0) {
       ldpp_dout(dpp, -1) << __PRETTY_FUNCTION__ << ":" << __LINE__
 		 << " _prepare_new_head failed: r=" << r
@@ -1431,9 +1429,7 @@ int FIFO::push(const DoutPrefixProvider *dpp, const std::vector<cb::list>& data_
       ++retries;
       ldpp_dout(dpp, 20) << __PRETTY_FUNCTION__ << ":" << __LINE__
 		     << " need new head tid=" << tid << dendl;
-      std::unique_lock l2(m2);
       r = _prepare_new_head(dpp, head_part_num + 1, tid, y);
-      l2.unlock();
       if (r < 0) {
 	ldpp_dout(dpp, -1) << __PRETTY_FUNCTION__ << ":" << __LINE__
 		   << " prepare_new_head failed: r=" << r
@@ -1552,7 +1548,6 @@ struct Pusher : public Completion<Pusher> {
   }
 
   void new_head(const DoutPrefixProvider *dpp, Ptr&& p) {
-    std::unique_lock l2(f->m2);
     new_heading = true;
     f->_prepare_new_head(dpp, head_part_num + 1, tid, call(std::move(p)));
     l2.unlock();

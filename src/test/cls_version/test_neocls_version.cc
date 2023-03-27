@@ -18,7 +18,6 @@
 #include <utility>
 
 #include <boost/asio/use_awaitable.hpp>
-#include <boost/asio/redirect_error.hpp>
 
 #include <boost/system/errc.hpp>
 #include <boost/system/error_code.hpp>
@@ -33,6 +32,8 @@
 
 namespace asio = boost::asio;
 namespace version = neorados::cls::version;
+using neorados::ReadOp;
+using neorados::WriteOp;
 
 using boost::system::error_code;
 using boost::system::errc::operation_canceled;
@@ -46,18 +47,14 @@ CORO_TEST_F(neocls_version, test_version_inc_read, NeoRadosTest)
   EXPECT_EQ(0u, ver.ver);
   EXPECT_EQ(0u, ver.tag.size());
 
-  /* inc version */
-  neorados::WriteOp op;
-  version::inc(op);
-  co_await execute(oid, std::move(op));
+  // Increment version
+  co_await execute(oid, WriteOp{}.exec(version::inc()));
 
   ver = co_await version::read(rados(), oid, pool(), asio::use_awaitable);
   EXPECT_GT(ver.ver, 0u);
   EXPECT_NE(0u, ver.tag.size());
 
-  op = neorados::WriteOp();
-  version::inc(op);
-  co_await rados().execute(oid, pool(), std::move(op), asio::use_awaitable);
+  co_await execute(oid, WriteOp{}.exec(version::inc()));
 
   auto ver2 = co_await version::read(rados(), oid, pool(), asio::use_awaitable);
 
@@ -65,11 +62,7 @@ CORO_TEST_F(neocls_version, test_version_inc_read, NeoRadosTest)
   EXPECT_EQ(0u, ver2.tag.compare(ver.tag));
 
   obj_version ver3;
-
-  neorados::ReadOp rop;
-  version::read(rop, &ver3);
-  co_await rados().execute(oid, pool(), std::move(rop), nullptr,
-			   asio::use_awaitable);
+  co_await execute(oid, ReadOp{}.exec(version::read(&ver3)));
   EXPECT_EQ(ver2.ver, ver3.ver);
   EXPECT_EQ(1u, ver2.compare(&ver3));
   co_return;
@@ -87,10 +80,8 @@ CORO_TEST_F(neocls_version, test_version_set, NeoRadosTest)
   ver.ver = 123;
   ver.tag = "foo";
 
-  /* set version */
-  neorados::WriteOp op;
-  version::set(op, ver);
-  co_await execute(oid, std::move(op));
+  // Set version
+  co_await execute(oid, WriteOp{}.exec(version::set(ver)));
 
   auto ver2 = co_await version::read(rados(), oid, pool(), asio::use_awaitable);
 
@@ -109,73 +100,55 @@ CORO_TEST_F(neocls_version, test_version_inc_cond, NeoRadosTest)
   EXPECT_EQ(0u, ver.ver);
   EXPECT_EQ(0u, ver.tag.size());
 
-  /* inc version */
-  neorados::WriteOp op;
-  version::inc(op);
-  co_await execute(oid, std::move(op));
-
+  // Increment version
+  co_await execute(oid, WriteOp{}.exec(version::inc()));
   ver = co_await version::read(rados(), oid, pool(), asio::use_awaitable);
   EXPECT_GT(ver.ver, 0u);
   EXPECT_NE(0, ver.tag.size());
 
   auto cond_ver = ver;
 
-  op = neorados::WriteOp();
-  version::inc(op);
-  co_await execute(oid, std::move(op));
+  co_await execute(oid, WriteOp{}.exec(version::inc()));
 
   auto ver2 = co_await version::read(rados(), oid, pool(), asio::use_awaitable);
   EXPECT_GT(ver2.ver, ver.ver);
   EXPECT_EQ(0u, ver2.tag.compare(ver.tag));
 
-  /* now check various condition tests */
-  op = neorados::WriteOp();
-  version::inc(op, cond_ver, VER_COND_NONE);
-  co_await execute(oid, std::move(op));
+  // Now check various condition tests
+  co_await execute(oid, WriteOp{}.exec(version::inc(cond_ver, VER_COND_NONE)));
 
   ver2 = co_await version::read(rados(), oid, pool(), asio::use_awaitable);
   EXPECT_GT(ver2.ver, ver.ver);
   EXPECT_EQ(0u, ver2.tag.compare(ver.tag));
 
-  /* a bunch of conditions that should fail */
-  op = neorados::WriteOp();
-  version::inc(op, cond_ver, VER_COND_EQ);
-  co_await expect_error_code(execute(oid, std::move(op)),
-			     operation_canceled);
+  // A bunch of conditions that should fail
+  co_await expect_error_code(
+    execute(oid, WriteOp{}.exec(version::inc(cond_ver, VER_COND_EQ))),
+    operation_canceled);
 
-  op = neorados::WriteOp();
-  version::inc(op, cond_ver, VER_COND_LT);
-  co_await expect_error_code(execute(oid, std::move(op)), operation_canceled);
+  co_await expect_error_code(
+    execute(oid, WriteOp{}.exec(version::inc(cond_ver, VER_COND_LT))),
+    operation_canceled);
 
-  op = neorados::WriteOp();
-  version::inc(op, cond_ver, VER_COND_LE);
-  co_await expect_error_code(execute(oid, std::move(op)), operation_canceled);
+  co_await expect_error_code(
+    execute(oid, WriteOp{}.exec(version::inc(cond_ver, VER_COND_LE))),
+    operation_canceled);
 
-  op = neorados::WriteOp();
-  version::inc(op, cond_ver, VER_COND_TAG_NE);
-  co_await expect_error_code(execute(oid, std::move(op)), operation_canceled);
+  co_await expect_error_code(
+    execute(oid, WriteOp{}.exec(version::inc(cond_ver, VER_COND_TAG_NE))),
+    operation_canceled);
 
   ver2 = co_await version::read(rados(), oid, pool(), asio::use_awaitable);
   EXPECT_GT(ver2.ver, ver.ver);
   EXPECT_EQ(0u, ver2.tag.compare(ver.tag));
 
   /* a bunch of conditions that should succeed */
-  op = neorados::WriteOp();
-  version::inc(op, ver2, VER_COND_EQ);
-  co_await execute(oid, std::move(op));
+  co_await execute(oid, WriteOp{}.exec(version::inc(ver2, VER_COND_EQ)));
+  co_await execute(oid, WriteOp{}.exec(version::inc(cond_ver, VER_COND_GT)));
+  co_await execute(oid, WriteOp{}.exec(version::inc(cond_ver, VER_COND_GE)));
 
-  op = neorados::WriteOp();
-  version::inc(op, cond_ver, VER_COND_GT);
-  co_await execute(oid, std::move(op));
-
-  op = neorados::WriteOp();
-  version::inc(op, cond_ver, VER_COND_GE);
-  co_await execute(oid, std::move(op));
-
-  op = neorados::WriteOp();
-  version::inc(op, cond_ver, VER_COND_TAG_EQ);
-  co_await execute(oid, std::move(op));
-  co_return;
+  co_await execute(oid, WriteOp{}
+                   .exec(version::inc(cond_ver, VER_COND_TAG_EQ)));
 }
 
 CORO_TEST_F(neocls_version, test_version_inc_check, NeoRadosTest)
@@ -187,10 +160,8 @@ CORO_TEST_F(neocls_version, test_version_inc_check, NeoRadosTest)
   EXPECT_EQ(0u, ver.ver);
   EXPECT_EQ(0u, ver.tag.size());
 
-  /* inc version */
-  neorados::WriteOp op;
-  version::inc(op);
-  co_await execute(oid, std::move(op));
+  // Increment version
+  co_await execute(oid, WriteOp{}.exec(version::inc()));
 
   ver = co_await version::read(rados(), oid, pool(), asio::use_awaitable);
   EXPECT_GT(ver.ver, 0u);
@@ -198,44 +169,34 @@ CORO_TEST_F(neocls_version, test_version_inc_check, NeoRadosTest)
 
   obj_version cond_ver = ver;
 
-  /* a bunch of conditions that should succeed */
-  neorados::ReadOp rop;
-  version::check(rop, cond_ver, VER_COND_EQ);
-  co_await execute(oid, std::move(rop));
+  // a bunch of conditions that should succeed
+  co_await execute(oid, ReadOp{}.exec(version::check(cond_ver, VER_COND_EQ)));
 
-  rop = neorados::ReadOp();
-  version::check(rop, cond_ver, VER_COND_GE);
-  co_await execute(oid, std::move(rop));
+  co_await execute(oid, ReadOp{}.exec(version::check(cond_ver, VER_COND_GE)));
 
-  rop = neorados::ReadOp();
-  version::check(rop, cond_ver, VER_COND_LE);
-  co_await execute(oid, std::move(rop));
+  co_await execute(oid, ReadOp{}.exec(version::check(cond_ver, VER_COND_LE)));
 
-  rop = neorados::ReadOp();
-  version::check(rop, cond_ver, VER_COND_TAG_EQ);
-  co_await execute(oid, std::move(rop));
+  co_await execute(oid, ReadOp{}
+                   .exec(version::check(cond_ver, VER_COND_TAG_EQ)));
 
-  op = neorados::WriteOp();
-  version::inc(op);
-  co_await execute(oid, std::move(op));
+  co_await execute(oid, WriteOp{}.exec(version::inc()));
 
   auto ver2 = co_await version::read(rados(), oid, pool(), asio::use_awaitable);
   EXPECT_GT(ver2.ver, ver.ver);
   EXPECT_EQ(0, ver2.tag.compare(ver.tag));
 
-  /* a bunch of conditions that should fail */
-  rop = neorados::ReadOp();
-  version::check(rop, ver, VER_COND_LT);
-  co_await expect_error_code(execute(oid, std::move(rop)), operation_canceled);
+  // A bunch of conditions that should fail
+  co_await expect_error_code(
+    execute(oid, ReadOp{}.exec(version::check(ver, VER_COND_LT))),
+    operation_canceled);
 
-  rop = neorados::ReadOp();
-  version::check(rop, ver, VER_COND_LE);
-  co_await expect_error_code(execute(oid, std::move(rop)), operation_canceled);
+  co_await expect_error_code(
+    execute(oid, ReadOp{}.exec(version::check(ver, VER_COND_LE))),
+    operation_canceled);
 
-  rop = neorados::ReadOp();
-  version::check(rop, ver, VER_COND_TAG_NE);
-  co_await expect_error_code(execute(oid, std::move(rop)), operation_canceled);
-  co_return;
+  co_await expect_error_code(
+    execute(oid, ReadOp{}.exec(version::check(ver, VER_COND_TAG_NE))),
+    operation_canceled);
 }
 
 TEST(neocls_version_bare, lambdata)
@@ -258,7 +219,7 @@ TEST(neocls_version_bare, lambdata)
 		  pool.set_pool(poolid);
 		  neorados::WriteOp op;
 		  op.create(true);
-		  version::set(op, iver);
+		  op.exec(version::set(iver));
 		  rados->execute(oid, pool, std::move(op), [&](error_code ec) {
 		    ASSERT_FALSE(ec);
 		    version::read(*rados, oid, pool,

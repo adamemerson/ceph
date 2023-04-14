@@ -1363,10 +1363,10 @@ int RGWRados::init_complete(const DoutPrefixProvider *dpp, optional_yield y)
 int RGWRados::init_svc(bool raw, const DoutPrefixProvider *dpp)
 {
   if (raw) {
-    return svc.init_raw(cct, use_cache, null_yield, dpp);
+    return svc.init_raw(cct, driver, use_cache, null_yield, dpp);
   }
 
-  return svc.init(cct, use_cache, run_sync_thread, null_yield, dpp);
+  return svc.init(cct, driver, use_cache, run_sync_thread, null_yield, dpp);
 }
 
 int RGWRados::init_ctl(const DoutPrefixProvider *dpp)
@@ -1380,7 +1380,20 @@ int RGWRados::init_ctl(const DoutPrefixProvider *dpp)
  */
 int RGWRados::init_begin(const DoutPrefixProvider *dpp)
 {
-  int ret = init_svc(false, dpp);
+  int ret;
+
+  ret = driver->init_neorados(dpp);
+  if (ret < 0) {
+    ldpp_dout(dpp, 0) << "ERROR: failed to initialize neorados (ret=" << cpp_strerror(-ret) << ")" << dendl;
+    return ret;
+  }
+  ret = init_rados();
+  if (ret < 0) {
+    ldpp_dout(dpp, 0) << "ERROR: failed to initialize librados (ret=" << cpp_strerror(-ret) << ")" << dendl;
+    return ret;
+  }
+
+  ret = init_svc(false, dpp);
   if (ret < 0) {
     ldpp_dout(dpp, 0) << "ERROR: failed to init services (ret=" << cpp_strerror(-ret) << ")" << dendl;
     return ret;
@@ -1394,7 +1407,7 @@ int RGWRados::init_begin(const DoutPrefixProvider *dpp)
 
   host_id = svc.zone_utils->gen_host_id();
 
-  return init_rados();
+  return 0;
 }
 
 /**

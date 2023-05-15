@@ -150,6 +150,7 @@ set(librgw_common_srcs
   rgw_lua_background.cc
   driver/d4n/d4n_directory.cc
   driver/d4n/d4n_datacache.cc
+  driver/d4n/d4n_policy.cc
   driver/d4n/rgw_sal_d4n.cc
   driver/rados/cls_fifo_legacy.cc
   driver/rados/rgw_bucket.cc

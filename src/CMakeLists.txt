@@ -297,8 +297,6 @@ endif()
 
 if(WITH_RADOSGW_D4N)
   add_subdirectory(cpp_redis) # remove later -Sam
-  add_subdirectory(boost_redis) # problem library -Sam
-  #add_subdirectory(redis) # redis release -Sam
 endif()
 
 if (WITH_BLKIN)

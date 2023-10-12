@@ -372,3 +372,14 @@ set_target_properties(cls_test_remote_reads PROPERTIES
   INSTALL_RPATH ""
   CXX_VISIBILITY_PRESET hidden)
 install(TARGETS cls_test_remote_reads DESTINATION ${cls_dir})
+
+# cls_datasyncmap
+set(cls_datasyncmap_srcs datasyncmap/cls.cc)
+add_library(cls_datasyncmap SHARED ${cls_datasyncmap_srcs})
+set_target_properties(cls_datasyncmap PROPERTIES
+  VERSION "1.0.0"
+  SOVERSION "1"
+  INSTALL_RPATH ""
+  CXX_VISIBILITY_PRESET hidden)
+target_link_libraries(cls_datasyncmap)
+install(TARGETS cls_datasyncmap DESTINATION ${cls_dir})
